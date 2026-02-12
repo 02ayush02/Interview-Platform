@@ -1,18 +1,13 @@
-// const express = require("express") -> Common way how express is started
-                                        // but now a modern syntax is there
-import express from "express"
-import { ENV } from "./lib/env.js"
+import express from 'express';
+import { ENV } from './lib/env.js';
 
-const app = express()
+const app = express();
 
-const PORT = ENV.PORT;
-const DB_URL = ENV.DB_URL;
+console.log(ENV.PORT)
+console.log(ENV.DB_URL)
 
-app.get("/", (req, res) => {
-    res.status(200).json({message: "Success from API"})
+app.get("/abhi", (req, res) => {
+    res.status(200).json({ message: "Hello World" });
 })
 
-
-app.listen(ENV.PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-})
+app.listen(ENV.PORT, () => console.log("Success Server is running on:", ENV.PORT))
