@@ -26,6 +26,8 @@ app.use(express.json());
 // to allow the frontend to make requests to the backend without being blocked by CORS policy, we need to enable CORS on the backend and specify the allowed origin (the client URL).
 app.use(cors({origin: ENV.CLIENT_URL, credentials: true}));
 
+const functions = [];
+
 const inngest = new Inngest({
   id: "interview-platform",
 });
