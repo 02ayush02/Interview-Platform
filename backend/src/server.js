@@ -2,18 +2,31 @@ import express from 'express';
 import { ENV } from './lib/env.js';
 import path from 'path';
 import { connectDB } from './lib/db.js';
+import cors from 'cors';
+import {serve} from "inngest-express"
 
 const app = express();
 
 const __dirname = path.resolve();
 
-app.get("/health", (req, res) => {
-    res.status(200).json({ message: "Hello World" });
-})
+// middleware
+app.use(express.json());
+// credentials: true allows cookies to be sent in cross-origin requests. 
+// This is necessary for authentication to work properly when the client 
+// and server are on different domains (or ports in development).
 
-app.get("/books", (req, res) => {
-    res.status(200).json({ message: "Again Working" });
-})
+// credentials: true is used to allow cookies to be sent in cross-origin requests. 
+// This is necessary for authentication to work properly when the client and server are 
+// on different domains (or ports in development).
+
+// cross-origin resource sharing (CORS) is a security feature implemented by browsers 
+// to restrict web applications from making requests to a different domain than the 
+// one that served the web page. but here it is set to true to allow cross-origin requests from the client URL specified in the environment variables.
+// to allow the frontend to make requests to the backend without being blocked by CORS policy, we need to enable CORS on the backend and specify the allowed origin (the client URL).
+app.use(cors({origin: ENV.CLIENT_URL, credentials: true}));
+
+
+app.use("/api/inngest", serve({client: inngest, functions}));
 
 
 
