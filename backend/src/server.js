@@ -3,7 +3,8 @@ import { ENV } from './lib/env.js';
 import path from 'path';
 import { connectDB } from './lib/db.js';
 import cors from 'cors';
-import { serve } from "inngest/express"
+import { Inngest } from "inngest";
+import { serve } from "inngest/express";
 
 const app = express();
 
@@ -25,6 +26,9 @@ app.use(express.json());
 // to allow the frontend to make requests to the backend without being blocked by CORS policy, we need to enable CORS on the backend and specify the allowed origin (the client URL).
 app.use(cors({origin: ENV.CLIENT_URL, credentials: true}));
 
+const inngest = new Inngest({
+  id: "interview-platform",
+});
 
 app.use("/api/inngest", serve({client: inngest, functions}));
 
