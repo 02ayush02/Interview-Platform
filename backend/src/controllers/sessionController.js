@@ -1,44 +1,95 @@
 import Session from "../models/Session.js";
 import { chatClient, streamClient } from "../lib/stream.js";
 
+import mongoose from "mongoose";
+
 export async function createSession(req, res) {
+    const mongoSession = await mongoose.startSession();
+    mongoSession.startTransaction();
+
     try {
         const { problem, difficulty } = req.body;
-        const userId = req.user._id
-        const clerkId = req.user.clerkId
-        
-        if (!problem || difficulty ) {
-            return req.status(400).json({message: "Problem and Difficulty are required"});
+        const userId = req.user._id;
+        const clerkId = req.user.clerkId;
+
+        // Validation
+        if (!problem || !difficulty) {
+            await mongoSession.abortTransaction();
+            mongoSession.endSession();
+            return res.status(400).json({
+                message: "Problem and difficulty are required"
+            });
         }
 
-        // generate a unique call id fro stream video
-        const callId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`
+        const allowedDifficulties = ["easy", "medium", "hard"];
+        if (!allowedDifficulties.includes(difficulty.toLowerCase())) {
+            await mongoSession.abortTransaction();
+            mongoSession.endSession();
+            return res.status(400).json({
+                message: "Invalid difficulty level"
+            });
+        }
 
-        // create the session in the database
-        const session = await Session.create({problem, difficulty, host: userId, callId});
+        // Generate unique call ID
+        const callId = `session_${Date.now()}_${Math.random()
+            .toString(36)
+            .substring(2, 9)}`;
 
-        // create a stream video call
-        await streamClient.video.call("default", callId).getOrCreate({
+        // Create DB session (inside transaction)
+        const session = await Session.create(
+            [{
+                problem,
+                difficulty,
+                user: userId,
+                clerkId,
+                callId,
+            }],
+            { session: mongoSession }
+        );
+
+        const createdSession = session[0];
+
+        // Create Stream video call
+        const call = streamClient.video.call("default", callId);
+
+        await call.getOrCreate({
             data: {
-                created_by_id:clerkId,
-                custom: {problem, difficulty, sessionId: session._id.toString()},
+                created_by_id: clerkId,
+                custom: {
+                    problem,
+                    difficulty,
+                    sessionId: createdSession._id.toString(),
+                },
             },
-        })
+        });
 
-        // chat messaging 
+        //  Create Stream chat channel
         const channel = chatClient.channel("messaging", callId, {
             name: `${problem} Session`,
             created_by_id: clerkId,
-            members: [clerkId] 
-        })
+            members: [clerkId],
+        });
 
         await channel.create();
-        res.status(201).json({session})
 
+        // Commit transaction (ONLY if everything succeeded)
+        await mongoSession.commitTransaction();
+        mongoSession.endSession();
+
+        res.status(201).json({
+            message: "Session created successfully",
+            session: createdSession,
+        });
 
     } catch (err) {
-        console.log("Error in createSession controller", err.message);
-        res.status(500).json({message: "Internal Server Error"});
+        // Rollback if anything fails
+        await mongoSession.abortTransaction();
+        mongoSession.endSession();
+
+        console.error("Error in createSession:", err);
+        res.status(500).json({
+            message: "Failed to create session. Rolled back changes.",
+        });
     }
 }
 
@@ -106,9 +157,16 @@ export async function joinSession(req, res) {
 
         if (!session) return res.status(400).json({message: "Session not found"});
 
-        // check if the session is already fulled means already have a 2 participants
+        if (session.status !== active) {
+            return res.status(400).json({message: "Cannot join a completed session"});
+        }
 
-        if (session.participant) return res.status(400).json({message: "Session is full"})
+        if (session.host.toString() === userId.toString()) {
+            return res.status(400).json({message: "Host cannot join their own session as participant"});
+        }
+
+        // check if the session is already fulled means already has 2 participants
+        if (session.participant) return res.status(409).json({message: "Session is full"})
 
         session.participant = userId;
         await session.save();
@@ -142,8 +200,6 @@ export async function endSession(req, res) {
             return res.status(400).json({message: "Session is already completed"})
         }
 
-        session.status = "completed";
-        await session.save();
 
         // delete stream video call
         const call = streamClient.video.call("default", session.callId) // first grab the call
@@ -152,6 +208,9 @@ export async function endSession(req, res) {
         // delete stream chat channel
         const channel = chatClient.channel("message", session.callId);
         await channel.delete();
+
+        session.status = "completed";
+        await session.save();
 
         res.status(200).json({message: "Session ended successfully"});
     } catch (err) {
