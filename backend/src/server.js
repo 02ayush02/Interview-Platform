@@ -10,6 +10,7 @@ import { clerkMiddleware } from '@clerk/express'
 import { protectRoute } from './middleware/protectRoute.js';
 import chatRoutes from './routes/chatRoutes.js'
 import sessionRoutes from "./routes/sessionRoutes.js"
+import { executeCode } from "./lib/piston.js";
 
 const app = express();
 
@@ -61,5 +62,22 @@ const startServer = async () => {
         process.exit(1);
     }
 }
+
+
+app.post("/api/execute", async (req, res) => {
+  try {
+    const { language, code } = req.body;
+
+    const result = await executeCode(language, code);
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      error: "Server error",
+    });
+  }
+});
 
 startServer();
