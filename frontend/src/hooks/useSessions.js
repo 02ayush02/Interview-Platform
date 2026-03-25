@@ -1,85 +1,71 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { sessionApi } from "../api/session.js";
 
 export const useCreateSession = () => {
-    const queryClient = useQueryClient();
-
-    return useMutation({
+    const result = useMutation({
         mutationKey: ["createSession"],
         mutationFn: sessionApi.createSession,
-        onSuccess: () => {
-            // Instantly refresh the active sessions list on the dashboard
-            queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
-            toast.success("Session Created Successfully!");
-        },
+        onSuccess: () => toast.success("Session Created Successfully!"),
         onError: (error) => {
-            console.error("FULL ERROR:", error);
+            console.log("FULL ERROR:", error);
+            console.log("RESPONSE DATA:", error?.response?.data);
             toast.error(error.response?.data?.message || "Failed to create the room");
         }
     });
+
+    return result;
 };
 
 export const useActiveSessions = () => {
-    return useQuery({
+    const result = useQuery({
         queryKey: ["activeSessions"],
         queryFn: sessionApi.getActiveSessions,
     });
+
+    return result;
 };
 
 export const useMyRecentSessions = () => {
-    return useQuery({
+    const result = useQuery({
         queryKey: ["myRecentSessions"],
-        queryFn: sessionApi.getRecentSessions,
+        queryFn: sessionApi.getRecentSessions, // Fixed function name mapping
     });
+
+    return result;
 };
 
 export const useSessionById = (id) => {
-    return useQuery({
+    const result = useQuery({
         queryKey: ["session", id],
         queryFn: () => sessionApi.getSessionById(id),
         enabled: !!id,
-        // Smart refetching: Stop polling the server if the session is already completed
-        refetchInterval: (query) => {
-            const status = query.state?.data?.session?.status;
-            return status === "completed" ? false : 5000;
-        },
+        refetchInterval: 5000, // refetch every 5 seconds to detect session status changes
     });
+
+    return result;
 };
 
 export const useJoinSession = () => {
-    const queryClient = useQueryClient();
-
-    return useMutation({
+    const result = useMutation({
         mutationKey: ["joinSession"],
         mutationFn: (id) => sessionApi.joinSession(id),
-        onSuccess: (_, id) => {
-            // Update both the specific session and the dashboard lists instantly
-            queryClient.invalidateQueries({ queryKey: ["session", id] });
-            queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
-            toast.success("Joined Session Successfully");
-        },
-        onError: (error) => {
-            toast.error(error.response?.data?.message || "Failed to join Session");
-        },
+        onSuccess: () => toast.success("Joined Session Successfully"),
+        onError: (error) =>
+            toast.error(error.response?.data?.message || "Failed to join Session"),
     });
+
+    return result;
 };
 
 export const useEndSession = () => {
-    const queryClient = useQueryClient();
-
-    return useMutation({
+    const result = useMutation({
         mutationKey: ["endSession"],
         mutationFn: (id) => sessionApi.endSession(id),
-        onSuccess: (_, id) => {
-            // Instantly update UI across the app to reflect the ended session
-            queryClient.invalidateQueries({ queryKey: ["session", id] });
-            queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
-            queryClient.invalidateQueries({ queryKey: ["myRecentSessions"] });
-            toast.success("Session Ended Successfully");
-        },
-        onError: (error) => {
-            toast.error(error.response?.data?.message || "Failed to end Session");
-        },
+        onSuccess: () => toast.success("Session Ended Successfully"),
+        onError: (error) =>
+            toast.error(error.response?.data?.message || "Failed to end Session"),
     });
+
+    return result;
 };
